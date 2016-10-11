@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<script src="//cdn.jsdelivr.net/chartist.js/latest/chartist.min.js"></script>
+		<link href="//cdn.jsdelivr.net/chartist.js/latest/chartist.min.css" rel="stylesheet" type="text/css" />
+		<meta charset="utf-8">
+	</head>
+	<body>
+		<h1>SNR</h1>
+		<div id="snr"></div>
+		<br/>
+		<h1>Data rate</h1>
+		<div id="datarate"></div>
+	</body>
+	<script type="text/javascript">
+		function refreshGraphs() {
+			fetch('/snr')
+				.then(function(response) {
+					return response.json();
+				})
+				.then(function(data) {
+					new Chartist.Line('#snr', data, {
+						width: 960,
+						height: 720,
+						axisY: {
+							offset: 80,
+							labelInterpolationFnc: function(value) {
+								return value + ' dB'
+							},
+							scaleMinSpace: 15
+						}
+					});
+				});
+
+			fetch('/pps')
+				.then(function(response) {
+					return response.json();
+				})
+				.then(function(data) {
+					new Chartist.Line('#datarate', data, {
+						width: 960,
+						height: 720,
+						axisY: {
+							offset: 80,
+							labelInterpolationFnc: function(value) {
+								return value + ' pps'
+							},
+							scaleMinSpace: 15
+						}
+					});
+				});
+
+		}
+		refreshGraphs();
+		setInterval(refreshGraphs, 1000);
+	</script>
+</html>
