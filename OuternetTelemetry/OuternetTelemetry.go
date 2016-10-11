@@ -79,12 +79,20 @@ type OuternetStatusTuner struct {
 	AlgPeakMean float64 `xml:"alg_pk_mn"`
 	State       int     `xml:"state"`
 }
+
+// /status response
 type OuternetStatusResponse struct {
 	Tuner OuternetStatusTuner `xml:"tuner"`
 	// Ignore everything else.
 }
 
+// /transfers response
 type OuternetTransferResponse struct {
+	Streams OuternetStreams `xml:"streams"`
+}
+
+// /signaling/ response
+type OuternetSignalingResponse struct {
 	Streams OuternetStreams `xml:"streams"`
 }
 
@@ -95,10 +103,15 @@ type OuternetStreams struct {
 type OuternetStream struct {
 	PId       int               `xml:"pid"`
 	Transfers OuternetTransfers `xml:"transfers"`
+	Files     OuternetFiles     `xml:"files"`
 }
 
 type OuternetTransfers struct {
 	Transfer []OuternetTransfer `xml:"transfer"`
+}
+
+type OuternetFiles struct {
+	File []OuternetFile `xml:"file"`
 }
 
 /*
@@ -117,6 +130,21 @@ type OuternetTransfer struct {
 	BlockCount    int    `xml:"block_count"`
 	BlockReceived int    `xml:"block_received"`
 	Complete      string `xml:"complete"` // "yes" / "no"
+}
+
+/*
+	<carousel_id>2</carousel_id>
+	<path>opaks/Hillary_Clinton.html.tgz</path>
+	<hash>ea4181e69f3648daa535adfd9a3b3a0cf48e88cdccfd05a28fb74ff6b535d334</hash>
+	<size>0</size>
+	<fec>ldpc:k=3675,n=4410,N1=2,seed=1000</fec>
+*/
+type OuternetFile struct {
+	CarouselID int    `xml:"carousel_id"`
+	Path       string `xml: "path"`
+	Hash       string `xml:"hash"`
+	Size       int    `xml:"size"`
+	FEC        string `xml:"fec"`
 }
 
 func NewClient() (*OuternetTelemetry, error) {
@@ -164,5 +192,11 @@ func (o *OuternetTelemetry) GetStatus() (OuternetStatusResponse, error) {
 func (o *OuternetTelemetry) GetTransfers() (OuternetTransferResponse, error) {
 	var ret OuternetTransferResponse
 	err := o.getCommandResponse("/transfers", &ret)
+	return ret, err
+}
+
+func (o *OuternetTelemetry) GetSignaling() (OuternetSignalingResponse, error) {
+	var ret OuternetSignalingResponse
+	err := o.getCommandResponse("/signaling/", &ret)
 	return ret, err
 }

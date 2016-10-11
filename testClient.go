@@ -21,4 +21,10 @@ func main() {
 		fmt.Printf("err: %s\n", err.Error())
 	}
 	fmt.Printf("%v\n", v2)
+
+	v3, err := ot.GetSignaling()
+	if err != nil {
+		fmt.Printf("err %s\n", err.Error())
+	}
+	fmt.Printf("%v\n", v3)
 }
