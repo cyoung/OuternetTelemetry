@@ -15,4 +15,10 @@ func main() {
 		fmt.Printf("err: %s\n", err.Error())
 	}
 	fmt.Printf("%v\n", v)
+
+	v2, err := ot.GetTransfers()
+	if err != nil {
+		fmt.Printf("err: %s\n", err.Error())
+	}
+	fmt.Printf("%v\n", v2)
 }

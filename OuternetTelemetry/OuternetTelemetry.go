@@ -17,6 +17,32 @@ type OuternetTelemetry struct {
 }
 
 /*
+		/transfers response
+
+<?xml version="1.0" encoding="UTF-8"?>
+<response code="200">
+	<streams>
+		<stream>
+			<pid>8191</pid>
+			<transfers>
+				<transfer>
+					<carousel_id>2</carousel_id>
+					<path>opaks/Michael_Jackson.html.tgz</path>
+					<hash>632d336af4c0840b3e195786ac81b30d95d05f3b215eace71458a24f773e562f</hash>
+					<block_count>2364</block_count>
+					<block_received>867</block_received>
+					<complete>no</complete>
+				</transfer>
+			</transfers>
+		</stream>
+	</streams>
+</response>
+*/
+
+/*
+
+		/status response
+
 <?xml version="1.0" encoding="UTF-8"?>
 <response code="200">
 	<tuner>
@@ -53,9 +79,44 @@ type OuternetStatusTuner struct {
 	AlgPeakMean float64 `xml:"alg_pk_mn"`
 	State       int     `xml:"state"`
 }
-type OuternetStatus struct {
+type OuternetStatusResponse struct {
 	Tuner OuternetStatusTuner `xml:"tuner"`
 	// Ignore everything else.
+}
+
+type OuternetTransferResponse struct {
+	Streams OuternetStreams `xml:"streams"`
+}
+
+type OuternetStreams struct {
+	Stream []OuternetStream `xml:"stream"`
+}
+
+type OuternetStream struct {
+	PId       int               `xml:"pid"`
+	Transfers OuternetTransfers `xml:"transfers"`
+}
+
+type OuternetTransfers struct {
+	Transfer []OuternetTransfer `xml:"transfer"`
+}
+
+/*
+	<carousel_id>2</carousel_id>
+	<path>opaks/Michael_Jackson.html.tgz</path>
+	<hash>632d336af4c0840b3e195786ac81b30d95d05f3b215eace71458a24f773e562f</hash>
+	<block_count>2364</block_count>
+	<block_received>867</block_received>
+	<complete>no</complete>
+
+*/
+type OuternetTransfer struct {
+	CarouselID    int    `xml:"carousel_id"`
+	Path          string `xml:"path"`
+	Hash          string `xml:"hash"`
+	BlockCount    int    `xml:"block_count"`
+	BlockReceived int    `xml:"block_received"`
+	Complete      string `xml:"complete"` // "yes" / "no"
 }
 
 func NewClient() (*OuternetTelemetry, error) {
@@ -71,28 +132,37 @@ func (o *OuternetTelemetry) sendCommand(cmd string) (int, error) {
 	return o.conn.Write([]byte(c))
 }
 
-func (o *OuternetTelemetry) GetStatus() (OuternetStatus, error) {
-	var ret OuternetStatus
-
-	// Request status.
-	_, err := o.sendCommand("/status")
+func (o *OuternetTelemetry) getCommandResponse(cmd string, i interface{}) error {
+	// Request data.
+	_, err := o.sendCommand(cmd)
 	if err != nil {
-		return ret, err
+		return err
 	}
 
 	// Wait for response.
 	m, err := o.reader.ReadBytes('\x00')
 	if err != nil {
-		return ret, err
+		return err
 	}
 
 	// Parse XML.
-	err = xml.Unmarshal(m, &ret)
+	err = xml.Unmarshal(m, i)
 	if err != nil {
-		return ret, fmt.Errorf("GetStatus(): XML parse error.")
+		return fmt.Errorf("GetStatus(): XML parse error.")
 	}
 
 	// Success.
-	return ret, nil
+	return nil
+}
 
+func (o *OuternetTelemetry) GetStatus() (OuternetStatusResponse, error) {
+	var ret OuternetStatusResponse
+	err := o.getCommandResponse("/status", &ret)
+	return ret, err
+}
+
+func (o *OuternetTelemetry) GetTransfers() (OuternetTransferResponse, error) {
+	var ret OuternetTransferResponse
+	err := o.getCommandResponse("/transfers", &ret)
+	return ret, err
 }
