@@ -1,6 +1,7 @@
 package main
 
 import (
+	"./OuternetStats"
 	"./OuternetTelemetry"
 	"encoding/json"
 	"fmt"
@@ -12,56 +13,10 @@ import (
 )
 
 const (
-	DATAPOINTS        = 1440
-	DATAUPLOAD_SERVER = "updates.stratux.me:9000"
+	DATAPOINTS = 1440
 )
 
 var datarate_counter = ratecounter.NewRateCounter(1 * time.Minute) // Packets per minute.
-
-type StatsMessage struct {
-	TimeCollected time.Time // Ending timestamp for the collection period.
-	PeriodSeconds int       // Number of seconds for the collection period.
-	SNR_Avg       float64   // SNR average over the period.
-	Packets_Total int       // Packets transferred (total: success + error) over the period.
-}
-
-/*
-	statsPoster().
-	 Posts stats to remote server.
-*/
-var statsChannel chan StatsMessage
-
-func statsPoster(receiverLat, receiverLng float64) {
-	statsChannel = make(chan StatsMessage, 1024)
-	var conn *net.Conn
-	msg := ""
-	for {
-		conn, err := net.Dial("tcp", DATAUPLOAD_SERVER)
-		if err != nil {
-			fmt.Printf("statsPoster(): error connecting to '%s'\n", DATAUPLOAD_SERVER)
-			time.Sleep(1 * time.Second)
-			continue
-		}
-		fmt.Printf("statsPoster(): connected to '%s'\n", DATAUPLOAD_SERVER)
-		for {
-			// This is here to account for a the last message received from the channel but not yet sent because of a network error.
-			if len(msg) == 0 {
-				// Get the new stat item.
-				d := <-statsChannel // Blocks.
-				json, _ := json.Marshal(&d)
-				msg = json + "\n"
-			}
-
-			_, err := conn.Write([]byte(msg))
-			if err != nil {
-				fmt.Printf("statsPoster(): write error: %s\n", err.Error())
-				time.Sleep(1 * time.Second)
-				break // Reconnect, try sending message again.
-			}
-			msg = "" // Success, clear buffer.
-		}
-	}
-}
 
 //http://www.jsgraphs.com/
 
@@ -124,9 +79,15 @@ func avg(vals []float64) float64 {
 	return total / float64(len(vals))
 }
 
+var statsPoster *OuternetStats.StatsPoster
+
 func TelemetryWatcher() {
 	secondTicker := time.NewTicker(1 * time.Second)
 	minuteTicker := time.NewTicker(50 * time.Second)
+
+	// Create a new "Stats Poster" (goroutine that connects back to the server to send stats)
+	statsPoster = OuternetStats.NewStatsPoster()
+
 	ot, err := OuternetTelemetry.NewClient()
 	if err != nil {
 		fmt.Printf("err: %s\n", err.Error())
@@ -170,10 +131,20 @@ func TelemetryWatcher() {
 			datarate_counter.Incr(int64(packetsSinceLast))
 
 			// Get counter rate and save in the data slice.
-			datarate = append(datarate, datarate_counter.Rate())
+			oneMinuteDataRate := datarate_counter.Rate()
+			datarate = append(datarate, oneMinuteDataRate)
 			if len(datarate) > DATAPOINTS {
 				datarate = datarate[len(datarate)-DATAPOINTS:]
 			}
+
+			// Construct a "StatsMessage" to send back to the server.
+			sm := OuternetStats.StatsMessage{
+				TimeCollected: time.Now(),
+				PeriodSeconds: 50,
+				SNR_Avg:       avgSNROneMinute,
+				Packets_Total: oneMinuteDataRate,
+			}
+			statsPoster.Send(sm)
 		}
 	}
 }
