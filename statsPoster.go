@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"github.com/paulbellamy/ratecounter"
 	"net/http"
+	"os"
 	"strconv"
 	"time"
 )
@@ -80,12 +81,12 @@ func avg(vals []float64) float64 {
 
 var statsPoster *OuternetStats.StatsPoster
 
-func TelemetryWatcher() {
+func TelemetryWatcher(lat, lng float64) {
 	secondTicker := time.NewTicker(1 * time.Second)
 	minuteTicker := time.NewTicker(50 * time.Second)
 
 	// Create a new "Stats Poster" (goroutine that connects back to the server to send stats)
-	statsPoster = OuternetStats.NewStatsPoster(0, 0)
+	statsPoster = OuternetStats.NewStatsPoster(lat, lng)
 
 	ot, err := OuternetTelemetry.NewClient()
 	if err != nil {
@@ -149,7 +150,22 @@ func TelemetryWatcher() {
 }
 
 func main() {
-	go TelemetryWatcher()
+	var lat, lng float64
+	if len(os.Args) >= 3 {
+		f, err := strconv.ParseFloat(os.Args[1], 64)
+		if err != nil {
+			fmt.Printf("invalid: '%s'.\n", os.Args[1])
+			return
+		}
+		lat = f
+		f, err = strconv.ParseFloat(os.Args[2], 64)
+		if err != nil {
+			fmt.Printf("invalid: '%s'.\n", os.Args[2])
+			return
+		}
+		lng = f
+	}
+	go TelemetryWatcher(lat, lng)
 	http.HandleFunc("/snr", handleSNRRequest)
 	http.HandleFunc("/datarate", handleDataRateRequest)
 	http.HandleFunc("/", defaultServer)
