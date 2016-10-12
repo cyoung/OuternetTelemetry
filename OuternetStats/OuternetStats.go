@@ -76,12 +76,14 @@ type StatsReceiver struct {
 }
 
 func (s *StatsReceiver) handleConnection(conn net.Conn) {
+	defer fmt.Printf("closed connection: %s\n", conn.RemoteAddr().String())
 	defer conn.Close()
 	reader := bufio.NewReader(conn)
+	fmt.Printf("new connection: %s\n", conn.RemoteAddr().String())
 	for {
 		m, err := reader.ReadBytes('\n')
 		if err != nil {
-			return // Disconnected, etc.
+			break // Disconnected, etc.
 		}
 		if len(m) == 0 {
 			continue // Empty message.
@@ -98,7 +100,6 @@ func (s *StatsReceiver) handleConnection(conn net.Conn) {
 		//TODO:Processing, save in db.
 		fmt.Printf("got a message successfully! %v\n", msg)
 	}
-
 }
 
 /*
