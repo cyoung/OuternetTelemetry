@@ -85,7 +85,7 @@ func TelemetryWatcher() {
 	minuteTicker := time.NewTicker(50 * time.Second)
 
 	// Create a new "Stats Poster" (goroutine that connects back to the server to send stats)
-	statsPoster = OuternetStats.NewStatsPoster()
+	statsPoster = OuternetStats.NewStatsPoster(0, 0)
 
 	ot, err := OuternetTelemetry.NewClient()
 	if err != nil {

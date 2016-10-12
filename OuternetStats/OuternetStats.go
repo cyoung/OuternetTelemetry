@@ -10,6 +10,8 @@ import (
 
 type StatsMessage struct {
 	DeviceID      string
+	ReceiverLat   float64
+	ReceiverLng   float64
 	TimeCollected time.Time // Ending timestamp for the collection period.
 	PeriodSeconds int       // Number of seconds for the collection period.
 	SNR_Avg       float64   // SNR average over the period.
@@ -22,6 +24,8 @@ const (
 )
 
 type StatsPoster struct {
+	ReceiverLat  float64
+	ReceiverLng  float64
 	statsChannel chan StatsMessage
 }
 
@@ -30,7 +34,7 @@ type StatsPoster struct {
 	 Posts stats to remote server.
 */
 
-func (s *StatsPoster) statsPoster(receiverLat, receiverLng float64) {
+func (s *StatsPoster) statsPoster() {
 	s.statsChannel = make(chan StatsMessage, 1024)
 	msg := ""
 	for {
@@ -62,13 +66,17 @@ func (s *StatsPoster) statsPoster(receiverLat, receiverLng float64) {
 }
 
 func (s *StatsPoster) Send(sm StatsMessage) {
+	sm.ReceiverLat = s.ReceiverLat
+	sm.ReceiverLng = s.ReceiverLng
 	s.statsChannel <- sm // Send to stats channel.
 }
 
-func NewStatsPoster() *StatsPoster {
-	p := new(StatsPoster)
-	go p.statsPoster(0, 0)
-	return p
+func NewStatsPoster(lat, lng float64) *StatsPoster {
+	s := new(StatsPoster)
+	s.ReceiverLat = lat
+	s.ReceiverLng = lng
+	go s.statsPoster()
+	return s
 }
 
 type StatsReceiver struct {
