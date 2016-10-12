@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/paulbellamy/ratecounter"
-	"net"
 	"net/http"
 	"strconv"
 	"time"
