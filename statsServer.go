@@ -7,7 +7,7 @@ import (
 )
 
 func main() {
-	server := OuternetStats.NewStatsReceiver()
+	OuternetStats.NewStatsReceiver()
 	for {
 		time.Sleep(1 * time.Second)
 		fmt.Printf("hi\n")

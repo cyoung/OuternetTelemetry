@@ -3,6 +3,7 @@ package OuternetStats
 import (
 	"bufio"
 	"encoding/json"
+	"fmt"
 	"net"
 	"time"
 )
@@ -31,7 +32,6 @@ type StatsPoster struct {
 
 func (s *StatsPoster) statsPoster(receiverLat, receiverLng float64) {
 	s.statsChannel = make(chan StatsMessage, 1024)
-	var conn *net.Conn
 	msg := ""
 	for {
 		conn, err := net.Dial("tcp", DATAUPLOAD_SERVER)
@@ -47,7 +47,7 @@ func (s *StatsPoster) statsPoster(receiverLat, receiverLng float64) {
 				// Get the new stat item.
 				d := <-s.statsChannel // Blocks.
 				json, _ := json.Marshal(&d)
-				msg = json + "\n"
+				msg = string(json) + "\n"
 			}
 
 			_, err := conn.Write([]byte(msg))
@@ -67,7 +67,7 @@ func (s *StatsPoster) Send(sm StatsMessage) {
 
 func NewStatsPoster() *StatsPoster {
 	p := new(StatsPoster)
-	go p.statsPoster()
+	go p.statsPoster(0, 0)
 	return p
 }
 
@@ -89,9 +89,9 @@ func (s *StatsReceiver) handleConnection(conn net.Conn) {
 
 		// Message is ideally a JSON-encoded "StatsMessage."
 		var msg StatsMessage
-		err := json.Unmarshal(m, &msg)
+		err = json.Unmarshal(m, &msg)
 		if err != nil {
-			fmt.Printf("handleConnection(): invalid data '%s'\n", string(s))
+			fmt.Printf("handleConnection(): invalid data '%s'\n", string(m))
 			continue
 		}
 
