@@ -2,8 +2,10 @@ package OuternetStats
 
 import (
 	"bufio"
+	"database/sql"
 	"encoding/json"
 	"fmt"
+	_ "github.com/go-sql-driver/mysql"
 	"net"
 	"time"
 )
@@ -41,7 +43,7 @@ func (s *StatsPoster) statsPoster() {
 		conn, err := net.Dial("tcp", DATAUPLOAD_SERVER)
 		if err != nil {
 			fmt.Printf("statsPoster(): error connecting to '%s'\n", DATAUPLOAD_SERVER)
-			time.Sleep(1 * time.Second)
+			time.Sleep(5 * time.Second)
 			continue
 		}
 		fmt.Printf("statsPoster(): connected to '%s'\n", DATAUPLOAD_SERVER)
@@ -57,7 +59,8 @@ func (s *StatsPoster) statsPoster() {
 			_, err := conn.Write([]byte(msg))
 			if err != nil {
 				fmt.Printf("statsPoster(): write error: %s\n", err.Error())
-				time.Sleep(1 * time.Second)
+				conn.Close()
+				time.Sleep(5 * time.Second)
 				break // Reconnect, try sending message again.
 			}
 			msg = "" // Success, clear buffer.
@@ -81,6 +84,8 @@ func NewStatsPoster(lat, lng float64) *StatsPoster {
 
 type StatsReceiver struct {
 	listener net.Listener
+	db       *sql.DB
+	dbChan   chan StatsMessage
 }
 
 func (s *StatsReceiver) handleConnection(conn net.Conn) {
@@ -105,8 +110,9 @@ func (s *StatsReceiver) handleConnection(conn net.Conn) {
 			continue
 		}
 
-		//TODO:Processing, save in db.
+		// Processing, save in db, etc.
 		fmt.Printf("got a message successfully! %v\n", msg)
+		s.dbChan <- msg
 	}
 }
 
@@ -132,8 +138,48 @@ func (s *StatsReceiver) statsReceiver() {
 	}
 }
 
+func (s *StatsReceiver) dbWriter() {
+	s.dbChan = make(chan StatsMessage, 1024)
+
+	// Last received message from the channel, which may not have been successfully inserted into the database.
+	var msg StatsMessage
+	unfinishedMessage := false
+
+	for {
+		// Connect to database.
+		db, err := sql.Open("mysql", "root:@/outernet")
+		if err != nil {
+			fmt.Printf("dbWriter(): db connect error: %s\n", err.Error())
+			time.Sleep(5 * time.Second)
+			continue
+		}
+		s.db = db
+
+		fmt.Printf("connected to db.\n")
+		for {
+			// Do we have a message that was already retrieved from the channel but not yet written to the database?
+			//  If no, get one.
+			if !unfinishedMessage {
+				msg = <-s.dbChan
+				unfinishedMessage = true
+			}
+			_, err := s.db.Exec(`INSERT INTO stats SET DeviceID=?, ReceiverLat=?, ReceiverLng=?, TimeCollected=?, PeriodSeconds=?, SNR_Avg=?, Packets_Total=?`,
+				msg.DeviceID, msg.ReceiverLat, msg.ReceiverLng, msg.TimeCollected, msg.PeriodSeconds, msg.SNR_Avg, msg.Packets_Total)
+			if err != nil {
+				fmt.Printf("dbWriter(): error inserting stats row to db: %s\n", err.Error())
+				s.db.Close()
+				time.Sleep(5 * time.Second)
+				break // Reconnect, try inserting data again.
+			}
+			unfinishedMessage = false // Success, don't attempt to re-insert current message.
+		}
+	}
+}
+
 func NewStatsReceiver() *StatsReceiver {
 	p := new(StatsReceiver)
+
+	go p.dbWriter()
 	go p.statsReceiver()
 	return p
 }
